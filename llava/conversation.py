@@ -10,6 +10,7 @@ class SeparatorStyle(Enum):
     MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    ZEPHYR = auto()
 
 
 @dataclasses.dataclass
@@ -98,6 +99,14 @@ class Conversation:
                     ret += message + seps[i % 2]
                 else:
                     ret += ""
+        elif self.sep_style == SeparatorStyle.ZEPHYR:
+            ret = f"<|system|>\n{self.system}{self.sep}"
+            for role, message in self.messages:
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    ret += f"{role}\n{message}{self.sep}"
+            return ret 
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -368,6 +377,20 @@ conv_mistral_instruct = Conversation(
     sep2="</s>",
 )
 
+conv_zephyr = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("<|user|>", "<|assistant|>"),
+    version="v1",
+    messages=(
+        ("<|user|>", "Hi!"),
+        ("<|assistant|>", "Hi there!  How can I help you today?")
+    ),
+    offset=0,
+    sep_style=SeparatorStyle.ZEPHYR,
+    sep="</s>\n",
+)
+
 conv_chatml_direct = Conversation(
     system="""<|im_start|>system
 Answer the questions.""",
@@ -389,7 +412,7 @@ conv_templates = {
     "mistral_instruct": conv_mistral_instruct,
     "chatml_direct": conv_chatml_direct,
     "mistral_direct": conv_chatml_direct,
-
+    "zepyhr": conv_zephyr,
     "plain": conv_llava_plain,
     "v0_plain": conv_llava_plain,
     "llava_v0": conv_llava_v0,
