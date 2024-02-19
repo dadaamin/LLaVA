@@ -381,7 +381,7 @@ conv_zephyr = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
     "The assistant gives helpful, detailed, and polite answers to the user's questions.",
     roles=("<|user|>", "<|assistant|>"),
-    version="v1",
+    version="zephyr",
     messages=(
         ("<|user|>", "Hi!"),
         ("<|assistant|>", "Hi there!  How can I help you today?")
