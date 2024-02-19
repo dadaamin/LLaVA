@@ -672,6 +672,8 @@ def preprocess(
         return preprocess_v1(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
         return preprocess_mpt(sources, tokenizer)
+    if conversation_lib.default_conversation.version == "zephyr":
+        return preprocess_zephyr(sources, tokenizer)
     # add end signal and concatenate together
     conversations = []
     for source in sources:
