@@ -11,6 +11,7 @@ class SeparatorStyle(Enum):
     PLAIN = auto()
     LLAMA_2 = auto()
     ZEPHYR = auto()
+    MIXTRAL = auto()
 
 
 @dataclasses.dataclass
@@ -107,6 +108,20 @@ class Conversation:
                         message, _, _ = message
                     ret += f"{role}\n{message}{self.sep}"
             return ret 
+        elif self.sep_style == SeparatorStyle.MIXTRAL:
+            ret = f"{self.sep}"
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    if role == "USER":
+                        if i == 0:
+                            ret += f"[INST] {self.system} {message} [/INST]"
+                        else:
+                            ret += f"[INST] {message} [/INST]"
+                    else:
+                        ret += f"{message}{self.sep2}"
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -391,6 +406,18 @@ conv_zephyr = Conversation(
     sep="</s>\n",
 )
 
+conv_mixtral = Conversation(
+    system="A chat between a curious user and an artificial intelligence assistant. "
+    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+    roles=("USER", "ASSISTANT"),
+    version="mixtral",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.MIXTRAL,
+    sep="<s>",
+    sep2="</s>",
+)
+
 conv_chatml_direct = Conversation(
     system="""<|im_start|>system
 Answer the questions.""",
@@ -420,6 +447,7 @@ conv_templates = {
     "llava_v1": conv_llava_v1,
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
+    "mixtral": conv_mixtral,
 
     "mpt": conv_mpt,
 }

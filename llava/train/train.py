@@ -27,6 +27,7 @@ import torch
 import transformers
 
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+IGNORE_INDEX = 40
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -637,6 +638,70 @@ def preprocess_zephyr(
                 print(f"WARNING: Conversation format invalid: {conversation}(Ignored)")
                 target[:] = IGNORE_INDEX
             cur_len += instruction_len
+        if cur_len < tokenizer.model_max_length:
+            if cur_len != total_len:
+                target[:] = IGNORE_INDEX
+                print(
+                    f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
+                    f" (ignored)"
+                )
+
+    return dict(
+        input_ids=input_ids,
+        labels=targets,
+    )
+
+
+def preprocess_mixtral(
+    sources,
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> Dict:
+    conv = conversation_lib.default_conversation.copy()
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+    # Apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        if roles[source[0]["from"]] != conv.roles[0]:
+            # Skip the first one if it is not from human
+            source = source[1:]
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
+        conversations.append(conv.get_prompt())
+    # Tokenize conversations
+    input_ids = tokenizer(
+        conversations,
+        return_tensors="pt",
+        padding="longest",
+        max_length=tokenizer.model_max_length,
+        truncation=True,
+    ).input_ids
+    targets = input_ids.clone()
+
+
+    # Mask targets
+    sep = f"</s>"
+    for conversation, target in zip(conversations, targets):
+        total_len = int(target.ne(tokenizer.pad_token_id).sum())
+
+        
+        rounds = conversation.split(sep)
+
+        cur_len = 1
+        target[:cur_len] = IGNORE_INDEX
+        for r in rounds:
+            instruction, answer = r.split("[/INST]")
+
+            instruction_len = len(tokenizer(instruction).inputs)
+            answer_len = len(tokenizer(instruction).inputs) - 1
+
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len + answer_len: cur_len + instruction_len + answer_len + 1] = IGNORE_INDEX
+            cur_len += instruction_len + cur_len + instruction_len + answer_len + 1
         if cur_len < tokenizer.model_max_length:
             if cur_len != total_len:
                 target[:] = IGNORE_INDEX
