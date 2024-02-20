@@ -27,7 +27,6 @@ import torch
 import transformers
 
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
-IGNORE_INDEX = 40
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -689,19 +688,19 @@ def preprocess_mixtral(
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
 
         
-        rounds = conversation.split(sep)
+        rounds = conversation.split(sep)[:-1]
 
         cur_len = 1
         target[:cur_len] = IGNORE_INDEX
         for r in rounds:
             instruction, answer = r.split("[/INST]")
 
-            instruction_len = len(tokenizer(instruction).inputs)
-            answer_len = len(tokenizer(instruction).inputs) - 1
+            instruction_len = len(tokenizer(instruction).input_ids)
+            answer_len = len(tokenizer(answer).input_ids)
 
-            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
-            target[cur_len: cur_len + instruction_len + answer_len: cur_len + instruction_len + answer_len + 1] = IGNORE_INDEX
-            cur_len += instruction_len + cur_len + instruction_len + answer_len + 1
+            target[cur_len - 1: cur_len + instruction_len + 2] = IGNORE_INDEX
+            cur_len += (instruction_len + 2 + answer_len)
+        target[-1] = IGNORE_INDEX
         if cur_len < tokenizer.model_max_length:
             if cur_len != total_len:
                 target[:] = IGNORE_INDEX
@@ -739,6 +738,8 @@ def preprocess(
         return preprocess_mpt(sources, tokenizer)
     if conversation_lib.default_conversation.version == "zephyr":
         return preprocess_zephyr(sources, tokenizer)
+    if conversation_lib.default_conversation.version == "mixtral":
+        return preprocess_mixtral(sources, tokenizer)
     # add end signal and concatenate together
     conversations = []
     for source in sources:
