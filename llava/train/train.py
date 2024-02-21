@@ -32,6 +32,7 @@ from llava.train.llava_trainer import LLaVATrainer
 
 from llava import conversation as conversation_lib
 from llava.model.language_model.llava_mistral import LlavaMistralForCausalLM
+from llava.model.language_model.llava_mixtral import LlavaMixtralForCausalLM
 from llava.mm_utils import tokenizer_image_token
 
 from PIL import Image
@@ -701,13 +702,14 @@ def preprocess_mixtral(
             target[cur_len - 1: cur_len + instruction_len + 2] = IGNORE_INDEX
             cur_len += (instruction_len + 2 + answer_len)
         target[-1] = IGNORE_INDEX
-        if cur_len < tokenizer.model_max_length:
-            if cur_len != total_len:
-                target[:] = IGNORE_INDEX
-                print(
-                    f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
-                    f" (ignored)"
-                )
+        # cur_len += 1
+        # if cur_len < tokenizer.model_max_length:
+        #     if cur_len != total_len:
+        #         target[:] = IGNORE_INDEX
+        #         print(
+        #             f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
+        #             f" (ignored)"
+        #         )
 
     return dict(
         input_ids=input_ids,
@@ -932,11 +934,19 @@ def train():
         ))
 
     if model_args.vision_tower is not None:
-        model = LlavaMistralForCausalLM.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            **bnb_model_from_pretrained_args
-        )
+        if "Mixtral" in model_args.model_name_or_path:
+            model = LlavaMixtralForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                cache_dir=training_args.cache_dir,
+                **bnb_model_from_pretrained_args
+            )
+        
+        else:
+            model = LlavaMistralForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                cache_dir=training_args.cache_dir,
+                **bnb_model_from_pretrained_args
+            )
     else:
         model = transformers.LlamaForCausalLM.from_pretrained(
             model_args.model_name_or_path,
