@@ -109,7 +109,7 @@ class Conversation:
                     ret += f"{role}\n{message}{self.sep}"
             return ret 
         elif self.sep_style == SeparatorStyle.MIXTRAL:
-            ret = f"{self.sep}"
+            ret = ""
             for i, (role, message) in enumerate(self.messages):
                 if message:
 
