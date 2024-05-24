@@ -13,7 +13,7 @@ DEFAULT_IM_END_TOKEN = "<im_end>"
 IMAGE_PLACEHOLDER = "<image-placeholder>"
 
 
-role_mapping = {
+ROLE_MAPPING = {
     "human": "user",
     "gpt": "assistant"
 }
