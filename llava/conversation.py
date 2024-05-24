@@ -12,6 +12,7 @@ class SeparatorStyle(Enum):
     LLAMA_2 = auto()
     ZEPHYR = auto()
     MIXTRAL = auto()
+    LLAMA3 = auto()
 
 
 @dataclasses.dataclass
@@ -27,6 +28,10 @@ class Conversation:
     version: str = "Unknown"
 
     skip_next: bool = False
+    
+    if sep_style == SeparatorStyle.LLAMA3:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B")
 
     def get_prompt(self):
         messages = self.messages
@@ -117,11 +122,13 @@ class Conversation:
                         message, _, _ = message
                     if role == "USER":
                         if i == 0:
-                            ret += f"[INST] {self.system} {message} [/INST]"
+                            ret += f"[INST] {self.system} {message} [/INST] "
                         else:
-                            ret += f"[INST] {message} [/INST]"
+                            ret += f"[INST] {message} [/INST] "
                     else:
                         ret += f"{message}{self.sep2}"
+        elif self.sep_style == SeparatorStyle.LLAMA3:
+            ret = self.tokenizer.apply_chat_template(self.messages, add_generation_prompt=True, tokenize=False)
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -283,6 +290,19 @@ conv_vicuna_v1 = Conversation(
     sep_style=SeparatorStyle.TWO,
     sep=" ",
     sep2="</s>",
+)
+
+simple_conv = Conversation(
+    system="A chat between a curious human and an artificial intelligence assistant. "
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+    roles=("Human", "Assistant"),
+    messages=(
+        ("Human", "Hi!"),
+        ("Assistant", "Hi there!  How can I help you today?\n")
+    ),
+    offset=2,
+    sep_style=SeparatorStyle.SINGLE,
+    sep="###",
 )
 
 conv_llama_2 = Conversation(
@@ -448,6 +468,7 @@ conv_templates = {
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
     "mixtral": conv_mixtral,
+    "simple": simple_conv,
 
     "mpt": conv_mpt,
 }

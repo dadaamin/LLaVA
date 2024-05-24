@@ -26,7 +26,7 @@ import torch
 
 import transformers
 
-from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, role_mapping
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -323,6 +323,20 @@ def preprocess_multimodal(
             sentence["value"] = sentence["value"].replace(DEFAULT_IMAGE_TOKEN, replace_token)
 
     return sources
+
+
+def preprocess_llama_3(
+    messages,
+    tokenizer: transformers.PreTrainedTokenizer,
+    has_image: bool = False
+) -> Dict:
+    conv = conversation_lib.default_conversation.copy()
+    tokenizer.add_special_tokens({DEFAULT_IMAGE_TOKEN: IMAGE_TOKEN_INDEX})
+    chat_template_str = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    
+    print(chat_template_str)
+    return None
+
 
 
 def preprocess_llama_2(
@@ -688,28 +702,26 @@ def preprocess_mixtral(
     for conversation, target in zip(conversations, targets):
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
 
-        
         rounds = conversation.split(sep)[:-1]
-
         cur_len = 1
         target[:cur_len] = IGNORE_INDEX
         for r in rounds:
-            instruction, answer = r.split("[/INST]")
+            instruction, answer = r.split("[/INST] ")
+            instruction += "[/INST]"
+            instruction_len = len(tokenizer(instruction, add_special_tokens=False).input_ids)
+            answer_len = len(tokenizer(answer, add_special_tokens=False).input_ids)
 
-            instruction_len = len(tokenizer(instruction).input_ids)
-            answer_len = len(tokenizer(answer).input_ids)
-
-            target[cur_len - 1: cur_len + instruction_len + 2] = IGNORE_INDEX
-            cur_len += (instruction_len + 2 + answer_len)
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            cur_len += (instruction_len + answer_len)
         target[-1] = IGNORE_INDEX
-        # cur_len += 1
-        # if cur_len < tokenizer.model_max_length:
-        #     if cur_len != total_len:
-        #         target[:] = IGNORE_INDEX
-        #         print(
-        #             f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
-        #             f" (ignored)"
-        #         )
+        cur_len += 1
+        if cur_len < tokenizer.model_max_length:
+            if cur_len != total_len:
+                target[:] = IGNORE_INDEX
+                print(
+                    f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
+                    f" (ignored)"
+                )
 
     return dict(
         input_ids=input_ids,
@@ -734,6 +746,8 @@ def preprocess(
         return preprocess_plain(sources, tokenizer)
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_2:
         return preprocess_llama_2(sources, tokenizer, has_image=has_image)
+    if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_3:
+        return preprocess_llama_3(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version.startswith("v1"):
         return preprocess_v1(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
@@ -934,7 +948,7 @@ def train():
         ))
 
     if model_args.vision_tower is not None:
-        if "Mixtral" in model_args.model_name_or_path:
+        if "mixtral" in model_args.model_name_or_path.lower():
             model = LlavaMixtralForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
                 cache_dir=training_args.cache_dir,
